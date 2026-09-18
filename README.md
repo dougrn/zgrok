@@ -55,7 +55,7 @@ Com o **zgrok**, você roda o seu próprio serviço de túnel na sua VPS:
 ### 1. Clonar o repositório e instalar dependências
 
 ```bash
-git clone https://github.com/seu-usuario/zgrok.git
+git clone https://github.com/dougrn/zgrok.git
 cd zgrok
 pip install -r requirements.txt
 ```
@@ -125,7 +125,7 @@ sudo systemctl restart apache2
 
 ```bash
 cd /var/www/
-sudo git clone https://github.com/seu-usuario/zgrok.git
+sudo git clone https://github.com/dougrn/zgrok.git
 cd /var/www/zgrok
 sudo pip3 install -r requirements.txt
 
