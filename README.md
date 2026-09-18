@@ -62,12 +62,12 @@ pip install -r requirements.txt
 
 ### 2. Configurar o endereço da sua VPS
 
-Copie o arquivo de exemplo:
+Copie o arquivo de exemplo dentro da pasta `client/`:
 ```bash
-cp config.example.json config.json
+cp client/config.example.json client/config.json
 ```
 
-Edite o `config.json`:
+Edite o `client/config.json`:
 ```json
 {
   "server_ws_url": "wss://meudominio.com/zgrok-ws",
@@ -78,17 +78,15 @@ Edite o `config.json`:
 
 ### 3. Abrir um Túnel
 
-Basta informar a porta local da sua aplicação:
+Basta informar a porta local da sua aplicação chamando o cliente:
 
 ```bash
-# Sintaxe completa:
-python zgrok.py http 3000
+# Executando direto:
+python client/zgrok.py 3000
 
-# Ou simplesmente a porta:
+# Ou entrando na pasta client:
+cd client
 python zgrok.py 3000
-
-# Ou se compilou o .exe (Windows):
-zgrok 3000
 ```
 
 ### Painel no Terminal:
@@ -191,19 +189,21 @@ sudo systemctl status zgrok
 
 ## 🪟 Como Gerar o Executável para Windows (`zgrok.exe`)
 
-Se você usa Windows e deseja um arquivo executável autônomo sem precisar chamar `python zgrok.py`:
+Se você usa Windows e deseja compilar o executável autônomo:
 
-Basta executar o script:
+Basta rodar o script dentro da pasta `client/`:
 ```cmd
+cd client
 build.bat
 ```
 Ou manualmente com o PyInstaller:
 ```bash
+cd client
 pip install pyinstaller colorama
-python -m PyInstaller --onefile --clean --name zgrok --paths client --hidden-import colorama zgrok.py
+python -m PyInstaller --onefile --clean --name zgrok --hidden-import colorama zgrok.py
 ```
 
-O arquivo `zgrok.exe` será gerado pronto para uso. Para poder chamar de qualquer lugar, basta adicionar a pasta ao seu **PATH** do Windows!
+O arquivo `client/zgrok.exe` será gerado pronto para uso. Para chamá-lo de qualquer lugar, basta adicionar a pasta `client/` ao seu **PATH** do Windows!
 
 ---
 
@@ -231,8 +231,8 @@ zgrok/
 │   ├── .htaccess             # Regras de rewrite / proxy para o Apache
 │   └── gateway.php           # Fallback em PHP para hosts restritos
 ├── client/
-│   ├── zgrok_client.py       # Motor do cliente CLI e túnel WebSocket
-│   ├── zgrok.py              # Atalho de importação
+│   ├── zgrok.py              # CLI do cliente e motor do túnel
+│   ├── build.bat             # Compilação do zgrok.exe
 │   └── config.example.json   # Configuração de exemplo do cliente
 ├── server/
 │   ├── server.py             # Servidor Python assíncrono (aiohttp)
@@ -241,13 +241,9 @@ zgrok/
 ├── tests/
 │   └── test_zgrok.py         # Testes de integração ponta a ponta
 ├── .gitignore                # Protege tokens, configs locais e binários
-├── build.bat                 # Script de compilação do .exe para Windows
-├── config.example.json       # Exemplo de configuração na raiz
 ├── LICENSE                   # Licença MIT
 ├── README.md                 # Documentação completa
-├── requirements.txt          # Dependências do projeto
-├── zgrok.bat                 # Executável para prompt do Windows
-└── zgrok.py                  # Ponto de entrada da CLI
+└── requirements.txt          # Dependências do projeto
 ```
 
 ---
