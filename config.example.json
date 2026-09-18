@@ -1,0 +1,5 @@
+{
+  "server_ws_url": "wss://meudominio.com/zgrok-ws",
+  "auth_token": "seu_token_secreto_aqui",
+  "default_local_host": "127.0.0.1"
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=zgrok - Servidor de Túnel Reverso Pessoal
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/zgrok/server
+ExecStart=/usr/bin/python3 /var/www/zgrok/server/server.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

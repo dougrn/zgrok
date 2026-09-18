@@ -1,0 +1,32 @@
+# Configurações pessoais e credenciais
+config.json
+client/config.json
+server/config.json
+.env
+
+# Builds do PyInstaller e executáveis
+build/
+dist/
+*.spec
+*.exe
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Ambientes virtuais
+venv/
+env/
+.venv/
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

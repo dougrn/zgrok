@@ -1,0 +1,29 @@
+# ==============================================================================
+# zgrok - Configuração do Apache / .htaccess
+# Roteamento sem necessidade de criar novos subdomínios ou registros DNS.
+# Requisitos do Apache: mod_rewrite, mod_proxy, mod_proxy_http, mod_proxy_wstunnel
+# ==============================================================================
+
+RewriteEngine On
+
+# 1. Roteamento de WebSocket para conexão do cliente local (zgrok.py)
+RewriteCond %{HTTP:Upgrade} =websocket [NC]
+RewriteRule ^zgrok-ws(.*)$ ws://127.0.0.1:8080/zgrok-ws$1 [P,L]
+
+# 2. Roteamento de requisições HTTP externas do túnel
+# Exemplo: https://meudominio.com/zgrok/a8f3k2/api/webhook -> http://127.0.0.1:8080/zgrok/a8f3k2/api/webhook
+RewriteRule ^zgrok/(.*)$ http://127.0.0.1:8080/zgrok/$1 [P,QSA,L]
+
+# 3. Status do servidor zgrok
+RewriteRule ^zgrok-status$ http://127.0.0.1:8080/zgrok-status [P,L]
+
+# 4. Roteamento automático de arquivos estáticos e chamadas de API (CSS, JS, fetch, imagens)
+# Se o navegador estiver em uma página do túnel (identificado por Cookie ou Referer),
+# repassa mesmo se a URL solicitada for raiz (ex: /app.js ou /api/usuarios)
+RewriteCond %{REQUEST_URI} !^/zgrok
+RewriteCond %{HTTP_COOKIE} zgrok_tunnel=([a-zA-Z0-9_-]+) [NC]
+RewriteRule ^(.*)$ http://127.0.0.1:8080/zgrok/%1/$1 [P,QSA,L]
+
+RewriteCond %{REQUEST_URI} !^/zgrok
+RewriteCond %{HTTP_REFERER} ^https?://[^/]+/zgrok/([a-zA-Z0-9_-]+) [NC]
+RewriteRule ^(.*)$ http://127.0.0.1:8080/zgrok/%1/$1 [P,QSA,L]

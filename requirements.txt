@@ -1,0 +1,4 @@
+# Dependências com versões exatas travadas para segurança e reprodutibilidade
+aiohttp==3.14.1
+colorama==0.4.6
+
