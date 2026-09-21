@@ -60,15 +60,17 @@ DEFAULT_CONFIG = {
 
 def get_possible_config_paths():
     """Retorna locais prováveis onde o config.json pode estar."""
+    exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
     user_home = os.path.expanduser("~")
     
     return [
+        os.path.join(exe_dir, "config.json"),
+        os.path.join(os.getcwd(), "config.json"),
         os.path.join(parent_dir, "config.json"),
         os.path.join(current_dir, "config.json"),
-        os.path.join(user_home, ".zgrok", "config.json"),
-        os.path.join(os.getcwd(), "config.json")
+        os.path.join(user_home, ".zgrok", "config.json")
     ]
 
 def load_config() -> dict:

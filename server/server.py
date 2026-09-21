@@ -75,7 +75,12 @@ async def ws_tunnel_handler(request: web.Request) -> web.WebSocketResponse:
 
     # ID automático (ou customizado opcional)
     requested_id = request.query.get("id", "").strip().lower()
-    if requested_id and requested_id not in active_tunnels:
+    
+    # Suporte a tunnel_id fixo para proxy catch-all
+    fixed_id = config.get("fixed_tunnel_id", "").strip()
+    if fixed_id:
+        tunnel_id = fixed_id
+    elif requested_id and requested_id not in active_tunnels:
         tunnel_id = requested_id
     else:
         tunnel_id = generate_tunnel_id(config.get("id_length", 6))
@@ -92,7 +97,15 @@ async def ws_tunnel_handler(request: web.Request) -> web.WebSocketResponse:
         host = request.host
         public_base = f"{scheme}://{host}/zgrok"
 
-    public_url = f"{public_base}/{tunnel_id}/"
+    # Suporte a múltiplos túneis simultâneos com ID
+    if config.get("wildcard_subdomain", False):
+        base_clean = public_base.replace("https://", "").replace("http://", "").split("/")[0]
+        proto = "https" if public_base.startswith("https") else "http"
+        public_url = f"{proto}://{tunnel_id}.{base_clean}/"
+    elif public_base.endswith("/zgrok"):
+        public_url = f"{public_base}/{tunnel_id}/"
+    else:
+        public_url = f"{public_base}/zgrok/{tunnel_id}/"
 
     logger.info(f"[+] Novo túnel registrado: {tunnel_id} ({request.remote}) -> {public_url}")
 
@@ -130,11 +143,8 @@ async def ws_tunnel_handler(request: web.Request) -> web.WebSocketResponse:
 
     return ws
 
-async def http_proxy_handler(request: web.Request) -> web.Response:
-    """Recebe requisições HTTP externas do Apache e repassa para o túnel correspondente."""
-    tunnel_id = request.match_info.get("tunnel_id", "").lower()
-    subpath = request.match_info.get("subpath", "")
-    
+async def forward_to_tunnel(tunnel_id: str, subpath: str, request: web.Request) -> web.Response:
+    """Encaminha uma requisição HTTP para o cliente WebSocket correspondente."""
     if not subpath.startswith("/"):
         subpath = "/" + subpath
 
@@ -222,13 +232,11 @@ async def http_proxy_handler(request: web.Request) -> web.Response:
     for h, v in res_headers.items():
         h_lower = h.lower()
         if h_lower not in ("content-length", "connection", "transfer-encoding", "content-encoding"):
-            # Ajustar redirecionamento Location para permanecer no túnel
-            if h_lower == "location" and v.startswith("/"):
+            if h_lower == "location" and v.startswith("/") and not (config.get("subdomain_mode", False) or not config.get("public_url_prefix", "").rstrip("/").endswith("/zgrok")):
                 filtered_headers[h] = f"/zgrok/{tunnel_id}{v}"
             else:
                 filtered_headers[h] = v
 
-    # Injetar cookie para que requisições subsequentes do navegador identifiquem o túnel
     response = web.Response(
         status=status_code,
         headers=filtered_headers,
@@ -241,6 +249,73 @@ async def http_proxy_handler(request: web.Request) -> web.Response:
         samesite="Lax"
     )
     return response
+
+async def http_proxy_handler(request: web.Request) -> web.Response:
+    """Recebe requisições com prefixo /zgrok/{tunnel_id} e repassa ao túnel."""
+    tunnel_id = request.match_info.get("tunnel_id", "").lower()
+    subpath = request.match_info.get("subpath", "")
+    return await forward_to_tunnel(tunnel_id, subpath, request)
+
+async def root_proxy_handler(request: web.Request) -> web.Response:
+    """Recebe requisições na raiz / e repassa ao túnel correto."""
+    # 1. Identificar túnel pelo subdomínio (ex: 74jj5d.zgrok.tecs.dev.br)
+    host_clean = request.host.split(":")[0].lower()
+    sub_parts = host_clean.split(".")
+    if sub_parts and sub_parts[0] in active_tunnels:
+        return await forward_to_tunnel(sub_parts[0], request.path, request)
+
+    # 2. Cookie de sessão do túnel (quando acessa via /zgrok/{id}/ e o frontend faz fetch na raiz)
+    cookie_id = request.cookies.get("zgrok_tunnel", "").strip().lower()
+    if cookie_id and cookie_id in active_tunnels:
+        return await forward_to_tunnel(cookie_id, request.path, request)
+
+    # 3. Referer do túnel
+    referer = request.headers.get("Referer", "")
+    for tid in active_tunnels:
+        if f"/zgrok/{tid}" in referer or f"{tid}." in referer:
+            return await forward_to_tunnel(tid, request.path, request)
+
+    # 4. Túnel com ID fixo configurado no servidor
+    fixed_id = config.get("fixed_tunnel_id", "").strip().lower()
+    if fixed_id and fixed_id in active_tunnels:
+        return await forward_to_tunnel(fixed_id, request.path, request)
+
+    # 5. Se houver apenas 1 túnel ativo no servidor, atalha direto para ele
+    if len(active_tunnels) == 1:
+        tunnel_id = list(active_tunnels.keys())[0]
+        return await forward_to_tunnel(tunnel_id, request.path, request)
+
+    # 6. Se houver múltiplos túneis conectados e a requisição não identificou o túnel
+    if len(active_tunnels) > 1:
+        items = "".join(f'<li style="margin:12px 0;"><a href="/zgrok/{tid}/" style="color:#38bdf8;font-size:18px;font-weight:bold;text-decoration:none;">/zgrok/{tid}/</a> <span style="color:#94a3b8;font-size:14px;">(IP: {info["remote"]})</span></li>' for tid, info in active_tunnels.items())
+        return web.Response(
+            status=200,
+            content_type="text/html",
+            text=f"""<!DOCTYPE html>
+<html>
+<head><title>zgrok - Túneis Ativos</title><meta charset="utf-8"></head>
+<body style="font-family:sans-serif;max-width:600px;margin:50px auto;padding:30px;background:#0f172a;color:#e2e8f0;border-radius:10px;border:1px solid #1e293b;">
+    <h1 style="color:#38bdf8;border-bottom:1px solid #334155;padding-bottom:15px;margin-top:0;">⚡ zgrok - Túneis Conectados ({len(active_tunnels)})</h1>
+    <p style="color:#cbd5e1;">Múltiplos túneis estão ativos no momento. Clique no túnel que deseja abrir:</p>
+    <ul style="list-style:none;padding:0;margin:20px 0;">{items}</ul>
+    <p style="color:#64748b;font-size:13px;border-top:1px solid #334155;padding-top:15px;">zgrok reverse tunnel server</p>
+</body>
+</html>"""
+        )
+
+    return web.Response(
+        status=503,
+        content_type="text/html",
+        text="""<!DOCTYPE html>
+<html>
+<head><title>zgrok - Nenhum Túnel Ativo</title><meta charset="utf-8"></head>
+<body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f172a;color:#e2e8f0;">
+    <h1 style="color:#ef4444;">503 - Nenhum Túnel Ativo</h1>
+    <p>Nenhum cliente zgrok está conectado no momento.</p>
+    <p style="color:#94a3b8;font-size:14px;">Inicie o cliente zgrok no seu computador para conectar o túnel.</p>
+</body>
+</html>"""
+    )
 
 async def status_handler(request: web.Request) -> web.Response:
     """Retorna o status geral do servidor zgrok."""
@@ -257,9 +332,11 @@ def create_app() -> web.Application:
     app.router.add_get("/zgrok-ws", ws_tunnel_handler)
     # Rota de status do servidor
     app.router.add_get("/zgrok-status", status_handler)
-    # Rota pública de roteamento por path
+    # Rota pública legada por path (/zgrok/{tunnel_id}/...)
     app.router.add_route("*", "/zgrok/{tunnel_id}", http_proxy_handler)
     app.router.add_route("*", "/zgrok/{tunnel_id}/{subpath:.*}", http_proxy_handler)
+    # Rota pública raiz para subdomínio dedicado (ngrok-style, ex: zgrok.tecs.dev.br/api/...)
+    app.router.add_route("*", "/{subpath:.*}", root_proxy_handler)
     return app
 
 if __name__ == "__main__":

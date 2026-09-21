@@ -87,7 +87,21 @@ class TestZgrokTunnel(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(data.get("status"), "success")
                 self.assertEqual(data.get("received"), payload)
 
-            # 3. Testar túnel inexistente -> deve retornar 404
+            # 3. Testar GET diretamente na raiz (modo subdomínio / ngrok-style)
+            root_get_url = "http://127.0.0.1:18080/test"
+            async with session.get(root_get_url) as resp:
+                self.assertEqual(resp.status, 200)
+                data = await resp.json()
+                self.assertEqual(data.get("message"), "hello from local app")
+
+            # 4. Testar POST diretamente na rota /api/data (modo subdomínio / ngrok-style)
+            root_post_url = "http://127.0.0.1:18080/api/data"
+            async with session.post(root_post_url, json=payload) as resp:
+                self.assertEqual(resp.status, 201)
+                data = await resp.json()
+                self.assertEqual(data.get("status"), "success")
+
+            # 5. Testar túnel inexistente por rota legada -> deve retornar 404
             invalid_url = "http://127.0.0.1:18080/zgrok/inexistente/test"
             async with session.get(invalid_url) as resp:
                 self.assertEqual(resp.status, 404)

@@ -4,89 +4,108 @@
 
 **Túnel reverso pessoal, seguro e de código aberto — a sua própria alternativa ao ngrok.**
 
-Exponha seus servidores locais (localhost) para a internet através da sua própria VPS, **sem precisar criar subdomínios, configurar zonas DNS wildcard ou emitir certificados SSL adicionais**, utilizando roteamento por path integrado ao Apache.
+Exponha aplicações locais (`localhost`) para a internet através da sua própria VPS com Apache e SSL, encapsulando requisições na raiz (estilo ngrok) ou por rotas dedicadas.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue)](https://github.com)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue)](https://github.com)
 
 </div>
 
 ---
 
-## ✨ Por que o zgrok?
+## ✨ Recursos
 
-O **ngrok** é excelente, mas impõe limitações em planos gratuitos: URLs que expiram, limites de requisições, telas de aviso intermediárias e obrigatoriedade de contas.
-
-Com o **zgrok**, você roda o seu próprio serviço de túnel na sua VPS:
-- 🚀 **Sem DNS Wildcard:** Não precisa criar registros `*.seudominio.com` nem gerar certificados SSL separados.
-- 🎯 **IDs Automáticos:** Basta rodar `zgrok 3000` e o servidor gera um link único instantaneamente (ex: `https://meudominio.com/zgrok/a8f3k2/`).
-- 🔄 **Resolução Inteligente de Rotas:** Fallback automático para evitar erros 404 em assets e chamadas de API relativas.
-- 🔒 **Seguro:** Proteção com token de autenticação opcional e conexão WebSocket criptografada (WSS).
-- 💻 **Zero Portas Extras no Firewall:** O cliente e os visitantes se comunicam através das portas padrão `80`/`443` do Apache.
-- 🖥️ **CLI Interativa:** Painel em tempo real no terminal exibindo método, status HTTP, rota e tempo de resposta (ms).
-- 📦 **Executável Windows:** Inclui script para compilar em arquivo `.exe` standalone com 1 clique.
+- 🎯 **Múltiplos Túneis Simultâneos:** Abra quantos túneis quiser ao mesmo tempo, cada um com seu ID único (gerado automaticamente ou customizado via `--id`).
+- 🚀 **Roteamento Inteligente de Rotas & APIs:** Suporta `/api/...`, SPAs, arquivos estáticos e webhooks sem conflito de rotas através de cookies de sessão e roteamento inteligente.
+- ⚡ **Atalho Direto & Dashboard:** Se houver apenas 1 túnel ativo, o acesso direto à raiz (`https://zgrok.meudominio.com/`) atalha automaticamente para ele. Se houver múltiplos, exibe uma tela visual para seleção.
+- 🌐 **Compatível com Subdomínio Wildcard:** Suporte nativo a `https://{id}.zgrok.meudominio.com/` estilo ngrok se configurado no DNS/Apache.
+- 🔒 **Seguro:** Conexão persistente criptografada via WebSocket (WSS) com suporte a token de autenticação opcional.
+- 💻 **Zero Portas Extras no Firewall:** O tráfego passa pelas portas padrão `80`/`443` gerenciadas pelo Apache na VPS.
+- 🖥️ **Painel em Tempo Real:** Terminal interativo com método HTTP, rota chamada, status code colorido e tempo de resposta (ms).
+- 📦 **Executável Windows:** Inclui `zgrok.exe` standalone pré-compilado e script `build.bat` para recompilar com 1 clique.
 
 ---
 
 ## 🏛️ Arquitetura
 
 ```text
-[ Visitante Externo / Webhook ] 
-              │ (HTTPS - Porta 443)
-              ▼
-   [ Apache VPS + .htaccess ]
-              │ (ProxyPass interno para localhost:8080)
-              ▼
-   [ zgrok-server (Python :8080) ]
-              │ (Túnel WebSocket WSS persistente)
-              ▼
-    [ zgrok CLI / zgrok.exe (Seu Computador) ]
-              │ (HTTP local)
-              ▼
-    [ Sua Aplicação Local (:3000, :5000, :8080) ]
+[ Visitante Externo / API / Webhook ] 
+                  │ (HTTPS - 443)
+                  ▼
+         [ Apache VirtualHost ]
+                  │ (ProxyPass interno para :8080)
+                  ▼
+       [ zgrok-server (Python :8080) ]
+                  │ (Túnel WebSocket WSS persistente)
+                  ▼
+        [ zgrok CLI / zgrok.exe ]
+                  │ (HTTP local)
+                  ▼
+      [ Sua Aplicação Local (:3000, :5010, etc.) ]
 ```
 
 ---
 
-## 🚀 Como Usar no Computador Local (Cliente)
+## 📁 Estrutura do Projeto
 
-### 1. Clonar o repositório e instalar dependências
-
-```bash
-git clone https://github.com/dougrn/zgrok.git
-cd zgrok
-pip install -r requirements.txt
+```text
+zgrok/
+├── apache/
+│   └── zgrok.conf.example    # VirtualHost do Apache pronto para uso com SSL
+├── client/
+│   ├── zgrok.py              # Código-fonte do cliente CLI
+│   ├── build.bat             # Compilador do executável Windows (.exe)
+│   └── config.example.json   # Modelo de configuração do cliente
+├── server/
+│   ├── server.py             # Servidor assíncrono (aiohttp)
+│   ├── zgrok.service         # Arquivo systemd para rodar 24/7 na VPS
+│   └── config.example.json   # Modelo de configuração do servidor
+├── tests/
+│   └── test_zgrok.py         # Testes automatizados ponta a ponta (unittest)
+├── zgrok.exe                 # Executável Windows compilado e pronto para uso
+├── requirements.txt          # Dependências do projeto
+├── LICENSE                   # Licença MIT
+└── README.md                 # Esta documentação
 ```
 
-### 2. Configurar o endereço da sua VPS
+---
 
-Copie o arquivo de exemplo dentro da pasta `client/`:
-```bash
-cp client/config.example.json client/config.json
-```
+## 🚀 Guia Rápido: Como Usar no Cliente (Seu Computador)
 
-Edite o `client/config.json`:
+### Opção A: Usando o Executável (`zgrok.exe`)
+1. Copie o arquivo `zgrok.exe` e crie um `config.json` na mesma pasta:
 ```json
 {
-  "server_ws_url": "wss://meudominio.com/zgrok-ws",
-  "auth_token": "seu_token_secreto_aqui",
+  "server_ws_url": "wss://zgrok.seudominio.com/zgrok-ws",
+  "auth_token": "seu_token_aqui_ou_vazio",
   "default_local_host": "127.0.0.1"
 }
 ```
 
-### 3. Abrir um Túnel
+2. No terminal (CMD ou PowerShell), execute informando a porta local:
+```powershell
+# Porta local direta (gera ID automático):
+.\zgrok.exe 3000
 
-Basta informar a porta local da sua aplicação chamando o cliente:
+# Ou definindo um ID fixo customizado:
+.\zgrok.exe 5010 --id 74jj5d
+```
 
+> 💡 **Dica de Múltiplos Túneis:** Você pode abrir múltiplos terminais ao mesmo tempo para diferentes portas locais (ex: um túnel para porta `3000` com `--id frontend` e outro para porta `5010` com `--id backend`). Cada um terá seu link exclusivo!
+
+---
+
+### Opção B: Executando com Python
 ```bash
-# Executando direto:
-python client/zgrok.py 3000
+# 1. Instalar dependências
+pip install -r requirements.txt
 
-# Ou entrando na pasta client:
-cd client
-python zgrok.py 3000
+# 2. Configurar o cliente
+cp client/config.example.json client/config.json
+
+# 3. Iniciar o túnel
+python client/zgrok.py 3000 --id meu-app
 ```
 
 ### Painel no Terminal:
@@ -94,16 +113,16 @@ python zgrok.py 3000
 zgrok - Túnel Reverso Pessoal
 
   Status:        [Online]
-  Túnel ID:      h01s1v
-  Forwarding:    https://meudominio.com/zgrok/h01s1v/ -> http://127.0.0.1:3000
-  Servidor VPS:  wss://meudominio.com/zgrok-ws
+  Túnel ID:      74jj5d
+  Forwarding:    https://zgrok.seudominio.com/zgrok/74jj5d/ -> http://127.0.0.1:5010
+  Servidor VPS:  wss://zgrok.seudominio.com/zgrok-ws
 
 ----------------------------------------------------------------------
 HORA       METODO  PATH                                   STATUS         DURACAO
 ----------------------------------------------------------------------
-[17:38:54] GET    /                                        200 OK         (3.0ms)
-[17:38:55] GET    /api/stats                               200 OK         (2.5ms)
-[17:38:56] POST   /api/webhook                             200 OK         (12.4ms)
+[11:25:47] GET    /                                        200 OK         (15.2ms)
+[11:25:48] GET    /api/dados                               200 OK         (8.4ms)
+[11:25:49] POST   /api/webhook                             201 OK         (24.1ms)
 ```
 
 ---
@@ -115,11 +134,11 @@ HORA       METODO  PATH                                   STATUS         DURACAO
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-pip apache2
-sudo a2enmod rewrite proxy proxy_http proxy_wstunnel
+sudo a2enmod proxy proxy_http proxy_wstunnel ssl rewrite headers
 sudo systemctl restart apache2
 ```
 
-### 2. Clonar e configurar o servidor
+### 2. Clonar e Configurar o zgrok na VPS
 
 ```bash
 cd /var/www/
@@ -137,47 +156,66 @@ Exemplo do `server/config.json`:
 {
   "host": "127.0.0.1",
   "port": 8080,
-  "auth_token": "seu_token_secreto_aqui",
-  "public_url_prefix": "https://meudominio.com/zgrok",
+  "auth_token": "",
+  "public_url_prefix": "https://zgrok.seudominio.com",
   "request_timeout": 30,
   "id_length": 6
 }
 ```
 
-### 3. Configurar o Apache
+### 3. Configurar o Apache (Subdomínio Dedicado)
 
-Você pode colocar as regras no seu `.htaccess` ou direto no VirtualHost do seu domínio com SSL.
-
-#### Opção Recomendada: Direto no VirtualHost SSL (`/etc/apache2/sites-available/...-ssl.conf`)
-Adicione antes de `</VirtualHost>`:
+Crie o arquivo `/etc/apache2/sites-available/zgrok.conf` (baseado em [apache/zgrok.conf.example](apache/zgrok.conf.example)):
 
 ```apache
-# zgrok - Conexão WebSocket para o cliente local
-ProxyPass /zgrok-ws ws://127.0.0.1:8080/zgrok-ws
-ProxyPassReverse /zgrok-ws ws://127.0.0.1:8080/zgrok-ws
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName zgrok.seudominio.com
 
-# zgrok - Roteamento público dos túneis
-ProxyPass /zgrok http://127.0.0.1:8080/zgrok
-ProxyPassReverse /zgrok http://127.0.0.1:8080/zgrok
+    SSLProxyEngine On
+    ProxyPreserveHost On
+    ProxyRequests Off
 
-# zgrok - Status do servidor
-ProxyPass /zgrok-status http://127.0.0.1:8080/zgrok-status
-ProxyPassReverse /zgrok-status http://127.0.0.1:8080/zgrok-status
+    RequestHeader set X-Real-IP "%{REMOTE_ADDR}s"
+    RequestHeader set X-Forwarded-For "%{REMOTE_ADDR}s"
+    RequestHeader set X-Forwarded-Proto "https"
+
+    # 1. Túnel WebSocket
+    ProxyPass /zgrok-ws ws://127.0.0.1:8080/zgrok-ws
+    ProxyPassReverse /zgrok-ws ws://127.0.0.1:8080/zgrok-ws
+
+    # 2. Status do servidor
+    ProxyPass /zgrok-status http://127.0.0.1:8080/zgrok-status
+    ProxyPassReverse /zgrok-status http://127.0.0.1:8080/zgrok-status
+
+    # 3. Encaminhamento completo da raiz para o túnel local (modo ngrok)
+    ProxyPass / http://127.0.0.1:8080/
+    ProxyPassReverse / http://127.0.0.1:8080/
+
+    ErrorLog ${APACHE_LOG_DIR}/zgrok_error.log
+    CustomLog ${APACHE_LOG_DIR}/zgrok_access.log combined
+
+    Include /etc/letsencrypt/options-ssl-apache.conf
+    SSLCertificateFile /etc/letsencrypt/live/zgrok.seudominio.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/zgrok.seudominio.com/privkey.pem
+</VirtualHost>
+</IfModule>
 ```
 
-#### Opção via `.htaccess`
-Se preferir usar `.htaccess`, copie o arquivo de [apache/.htaccess](apache/.htaccess) para a raiz do seu site:
+Ative o site e o certificado SSL:
 ```bash
-sudo cp apache/.htaccess /var/www/html/.htaccess
+sudo a2ensite zgrok.conf
+sudo certbot --apache -d zgrok.seudominio.com
+sudo apache2ctl configtest
+sudo systemctl reload apache2
 ```
 
-### 4. Rodar como Serviço no Linux (24/7 via Systemd)
+### 4. Rodar como Serviço no Linux (Systemd)
 
 ```bash
 sudo cp server/zgrok.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now zgrok
-sudo systemctl restart apache2
 ```
 
 Verifique o status do serviço:
@@ -187,67 +225,36 @@ sudo systemctl status zgrok
 
 ---
 
-## 🪟 Como Gerar o Executável para Windows (`zgrok.exe`)
+## 🪟 Como Compilar o `zgrok.exe` (Windows)
 
-Se você usa Windows e deseja compilar o executável autônomo:
+Para gerar uma nova versão compilada do executável:
 
-Basta rodar o script dentro da pasta `client/`:
 ```cmd
 cd client
 build.bat
 ```
-Ou manualmente com o PyInstaller:
-```bash
-cd client
-pip install pyinstaller colorama
-python -m PyInstaller --onefile --clean --name zgrok --hidden-import colorama zgrok.py
-```
 
-O arquivo `client/zgrok.exe` será gerado pronto para uso. Para chamá-lo de qualquer lugar, basta adicionar a pasta `client/` ao seu **PATH** do Windows!
+O script utiliza o PyInstaller com a flag `--onefile` e gera o executável standalone `zgrok.exe` pronto para distribuição.
 
 ---
 
 ## 🧪 Testes Automatizados
 
-O projeto inclui suíte completa de testes de integração ponta a ponta:
+Para rodar a suíte de testes de integração ponta a ponta:
 
 ```bash
 python -m unittest tests/test_zgrok.py
 ```
 
 Os testes validam:
-- Inicialização do servidor e cliente em background.
-- Handshake WebSocket com geração automática de IDs.
-- Roteamento completo de requisições HTTP GET e POST (com payloads JSON).
-- Retorno de status codes adequados (200, 201, 404 para túneis offline).
-
----
-
-## 📂 Estrutura de Diretórios
-
-```text
-zgrok/
-├── apache/
-│   ├── .htaccess             # Regras de rewrite / proxy para o Apache
-│   └── gateway.php           # Fallback em PHP para hosts restritos
-├── client/
-│   ├── zgrok.py              # CLI do cliente e motor do túnel
-│   ├── build.bat             # Compilação do zgrok.exe
-│   └── config.example.json   # Configuração de exemplo do cliente
-├── server/
-│   ├── server.py             # Servidor Python assíncrono (aiohttp)
-│   ├── config.example.json   # Configuração de exemplo do servidor
-│   └── zgrok.service         # Arquivo de serviço systemd para a VPS
-├── tests/
-│   └── test_zgrok.py         # Testes de integração ponta a ponta
-├── .gitignore                # Protege tokens, configs locais e binários
-├── LICENSE                   # Licença MIT
-├── README.md                 # Documentação completa
-└── requirements.txt          # Dependências do projeto
-```
+- Inicialização do servidor assíncrono e do cliente.
+- Conexão WebSocket e geração de ID automático/customizado.
+- Roteamento completo de requisições GET e POST (JSON payload).
+- Encapsulamento na raiz estilo ngrok (`/api/data`, `/test`).
+- Status codes adequados (200, 201, 404 e 503 quando offline).
 
 ---
 
 ## 📄 Licença
 
-Este projeto está sob a licença [MIT](LICENSE). Sinta-se livre para usar, modificar e distribuir.
+Este projeto está sob a licença [MIT](LICENSE).

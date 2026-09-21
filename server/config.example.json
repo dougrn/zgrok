@@ -2,7 +2,7 @@
   "host": "127.0.0.1",
   "port": 8080,
   "auth_token": "seu_token_secreto_aqui",
-  "public_url_prefix": "https://meudominio.com/zgrok",
+  "public_url_prefix": "https://zgrok.meudominio.com",
   "request_timeout": 30,
   "id_length": 6
 }
