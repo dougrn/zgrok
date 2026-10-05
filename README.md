@@ -17,8 +17,9 @@ Exponha aplicações locais (`localhost`) para a internet através da sua própr
 ## ✨ Recursos
 
 - 🎯 **Múltiplos Túneis Simultâneos:** Abra quantos túneis quiser ao mesmo tempo, cada um com seu ID único (gerado automaticamente ou customizado via `--id`).
-- 🚀 **Roteamento Inteligente de Rotas & APIs:** Suporta `/api/...`, SPAs, arquivos estáticos e webhooks sem conflito de rotas através de cookies de sessão e roteamento inteligente.
-- ⚡ **Atalho Direto & Dashboard:** Se houver apenas 1 túnel ativo, o acesso direto à raiz (`https://zgrok.meudominio.com/`) atalha automaticamente para ele. Se houver múltiplos, exibe uma tela visual para seleção.
+- 🚀 **Roteamento Inteligente & Suporte Nativo a SPAs:** Ao clicar no link do túnel (`/zgrok/{id}/`), o servidor grava um cookie de sessão (`zgrok_tunnel`) e redireciona automaticamente para a raiz (`/`). Isso evita qualquer erro 404 de roteamento no React Router, Vue Router, Inertia ou Vite.
+- ⚡ **Atalho Direto & Dashboard Seletor:** Se houver apenas 1 túnel ativo, o acesso direto à raiz (`https://zgrok.meudominio.com/`) atalha imediatamente para ele. Se houver múltiplos, exibe uma tela visual interativa para seleção e permite alternar a qualquer momento acessando `/zgrok-switch`.
+- 🔌 **Webhooks & APIs Diretas:** Chamadas de APIs e webhooks de terceiros (POST/PUT/JSON) em rotas como `/zgrok/{id}/webhook` são encaminhadas diretamente sem redirecionamento.
 - 🌐 **Compatível com Subdomínio Wildcard:** Suporte nativo a `https://{id}.zgrok.meudominio.com/` estilo ngrok se configurado no DNS/Apache.
 - 🔒 **Seguro:** Conexão persistente criptografada via WebSocket (WSS) com suporte a token de autenticação opcional.
 - 💻 **Zero Portas Extras no Firewall:** O tráfego passa pelas portas padrão `80`/`443` gerenciadas pelo Apache na VPS.
@@ -92,7 +93,11 @@ zgrok/
 .\zgrok.exe 5010 --id 74jj5d
 ```
 
-> 💡 **Dica de Múltiplos Túneis:** Você pode abrir múltiplos terminais ao mesmo tempo para diferentes portas locais (ex: um túnel para porta `3000` com `--id frontend` e outro para porta `5010` com `--id backend`). Cada um terá seu link exclusivo!
+> 💡 **Como funciona o chaveamento de múltiplos túneis:**
+> - Você pode abrir múltiplos terminais ao mesmo tempo para diferentes portas locais (ex: `frontend` na `3000` e `backend` na `5000`).
+> - Ao clicar no link do terminal (ex: `/frontend/`), o servidor grava o cookie de sessão do projeto e redireciona você para a raiz limpa (`/`), garantindo que SPAs e assets funcionem perfeitamente.
+> - Se você acessar a raiz sem sessão com 2 ou mais túneis ativos, o zgrok exibe uma **tela visual moderna** para você escolher qual projeto acessar.
+> - Para alternar de projeto a qualquer momento, basta acessar: **`https://zgrok.seudominio.com/switch`**.
 
 ---
 
@@ -114,7 +119,7 @@ zgrok - Túnel Reverso Pessoal
 
   Status:        [Online]
   Túnel ID:      74jj5d
-  Forwarding:    https://zgrok.seudominio.com/zgrok/74jj5d/ -> http://127.0.0.1:5010
+  Forwarding:    https://zgrok.seudominio.com/74jj5d/ -> http://127.0.0.1:5010
   Servidor VPS:  wss://zgrok.seudominio.com/zgrok-ws
 
 ----------------------------------------------------------------------
