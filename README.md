@@ -162,11 +162,17 @@ Exemplo do `server/config.json`:
   "host": "127.0.0.1",
   "port": 8080,
   "auth_token": "",
-  "public_url_prefix": "https://zgrok.seudominio.com",
+  "public_url_prefix": "https://seudominio.com",
+  "wildcard_subdomain": true,
+  "subdomain_suffix": "-zgrok",
   "request_timeout": 30,
-  "id_length": 6
+  "id_length": 6,
+  "hide_tunnel_list": true
 }
 ```
+
+> 🔒 **Privacidade & Segurança (Modo Secreto):** Com `"hide_tunnel_list": true`, o servidor **nunca lista** quais túneis estão conectados e desativa o painel `/switch`. Qualquer acesso a domínios ou caminhos inexistentes retorna um erro 404 neutro sem expor nenhuma informação.
+> 💡 **Modo Wildcard (ngrok-style):** Com `"wildcard_subdomain": true` e `"subdomain_suffix": "-zgrok"`, cada túnel aberto recebe uma URL exclusiva no formato `https://{id}-zgrok.seudominio.com/` com certificado SSL da Cloudflare.
 
 ### 3. Configurar o Apache (Subdomínio Dedicado)
 

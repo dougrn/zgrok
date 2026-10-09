@@ -30,7 +30,10 @@ DEFAULT_CONFIG = {
     "auth_token": "",  # Deixe vazio para desativar ou defina um token secreto
     "public_url_prefix": "https://meudominio.com/zgrok",
     "request_timeout": 30,
-    "id_length": 6
+    "id_length": 6,
+    "wildcard_subdomain": False,
+    "subdomain_suffix": "-zgrok",
+    "hide_tunnel_list": True
 }
 
 def load_config() -> dict:
@@ -101,7 +104,8 @@ async def ws_tunnel_handler(request: web.Request) -> web.WebSocketResponse:
     if config.get("wildcard_subdomain", False):
         base_clean = public_base.replace("https://", "").replace("http://", "").split("/")[0]
         proto = "https" if public_base.startswith("https") else "http"
-        public_url = f"{proto}://{tunnel_id}.{base_clean}/"
+        suffix = config.get("subdomain_suffix", "-zgrok")
+        public_url = f"{proto}://{tunnel_id}{suffix}.{base_clean}/"
     elif public_base.endswith("/zgrok"):
         public_url = f"{public_base}/{tunnel_id}/"
     else:
@@ -262,8 +266,15 @@ def format_uptime(seconds: float) -> str:
     else:
         return f"{sec // 3600}h {(sec % 3600) // 60}m"
 
-def render_tunnel_not_found(tunnel_id: str) -> web.Response:
+def render_tunnel_not_found(tunnel_id: str = "") -> web.Response:
     """Retorna página 404 quando o túnel requisitado não existe."""
+    switch_link = ""
+    tid_info = "O túnel solicitado não está conectado ou expirou."
+    if not config.get("hide_tunnel_list", True):
+        switch_link = '<p style="margin-top:25px;"><a href="/switch" style="color:#38bdf8;text-decoration:none;font-weight:600;">&larr; Ver túneis ativos</a></p>'
+        if tunnel_id:
+            tid_info = f'O túnel <code style="background:#1e293b;padding:3px 8px;border-radius:6px;color:#f8fafc;">{tunnel_id}</code> não está conectado ou expirou.'
+
     return web.Response(
         status=404,
         content_type="text/html",
@@ -272,8 +283,8 @@ def render_tunnel_not_found(tunnel_id: str) -> web.Response:
 <head><title>zgrok - Túnel Não Encontrado</title><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;text-align:center;padding:50px 20px;background:#0f172a;color:#e2e8f0;">
     <h1 style="color:#ef4444;margin-bottom:12px;">404 - Túnel Não Encontrado</h1>
-    <p style="color:#94a3b8;font-size:16px;">O túnel <code style="background:#1e293b;padding:3px 8px;border-radius:6px;color:#f8fafc;">{tunnel_id}</code> não está conectado ou expirou.</p>
-    <p style="margin-top:25px;"><a href="/switch" style="color:#38bdf8;text-decoration:none;font-weight:600;">&larr; Ver túneis ativos</a></p>
+    <p style="color:#94a3b8;font-size:16px;">{tid_info}</p>
+    {switch_link}
     <p style="color:#64748b;font-size:13px;margin-top:40px;">zgrok reverse tunnel server</p>
 </body>
 </html>"""
@@ -353,6 +364,9 @@ async def switch_handler(request: web.Request) -> web.Response:
             max_age=86400 * 30
         )
         return redirect_res
+
+    if config.get("hide_tunnel_list", True):
+        return render_tunnel_not_found()
 
     if not active_tunnels:
         return web.Response(
@@ -447,11 +461,18 @@ async def root_proxy_handler(request: web.Request) -> web.Response:
         # Para chamadas diretas de APIs / Webhooks com ID (ex: POST /frontend/api/...)
         return await forward_to_tunnel(tunnel_id, subpath, request)
 
-    # 2. Identificar túnel pelo subdomínio (ex: 74jj5d.zgrok.meudominio.com)
+    # 2. Identificar túnel pelo subdomínio (ex: 74jj5d-zgrok.tecs.dev.br ou 74jj5d.tecs.dev.br)
     host_clean = request.host.split(":")[0].lower()
     sub_parts = host_clean.split(".")
-    if sub_parts and sub_parts[0] in active_tunnels:
-        return await forward_to_tunnel(sub_parts[0], request.path, request)
+    if sub_parts:
+        sub_domain = sub_parts[0]
+        suffix = config.get("subdomain_suffix", "-zgrok").lower()
+        if suffix and sub_domain.endswith(suffix):
+            candidate_id = sub_domain[:-len(suffix)]
+            if candidate_id in active_tunnels:
+                return await forward_to_tunnel(candidate_id, request.path, request)
+        if sub_domain in active_tunnels:
+            return await forward_to_tunnel(sub_domain, request.path, request)
 
     # 3. Cookie de sessão do túnel (quando o usuário ativou o túnel ou selecionou na tela)
     cookie_id = request.cookies.get("zgrok_tunnel", "").strip().lower()
@@ -469,14 +490,17 @@ async def root_proxy_handler(request: web.Request) -> web.Response:
     if fixed_id and fixed_id in active_tunnels:
         return await forward_to_tunnel(fixed_id, request.path, request)
 
-    # 6. Se houver apenas 1 túnel ativo no servidor, atalha direto para ele
-    if len(active_tunnels) == 1:
+    # 6. Se houver apenas 1 túnel ativo no servidor, atalha direto para ele (se hide_tunnel_list for False)
+    if not config.get("hide_tunnel_list", True) and len(active_tunnels) == 1:
         tunnel_id = list(active_tunnels.keys())[0]
         return await forward_to_tunnel(tunnel_id, request.path, request)
 
     # 7. Se houver múltiplos túneis conectados e a requisição não identificou o túnel
-    if len(active_tunnels) > 1:
+    if not config.get("hide_tunnel_list", True) and len(active_tunnels) > 1:
         return render_tunnel_selector(request)
+
+    if config.get("hide_tunnel_list", True):
+        return render_tunnel_not_found()
 
     return web.Response(
         status=503,
@@ -494,12 +518,14 @@ async def root_proxy_handler(request: web.Request) -> web.Response:
 
 async def status_handler(request: web.Request) -> web.Response:
     """Retorna o status geral do servidor zgrok."""
-    return web.json_response({
+    data = {
         "status": "online",
-        "service": "zgrok",
-        "active_tunnels": len(active_tunnels),
-        "uptime": time.time()
-    })
+        "service": "zgrok"
+    }
+    if not config.get("hide_tunnel_list", True):
+        data["active_tunnels"] = len(active_tunnels)
+        data["uptime"] = time.time()
+    return web.json_response(data)
 
 def create_app() -> web.Application:
     app = web.Application()
